@@ -1,0 +1,542 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Voice RAG</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #000000;
+      --text: #ffffff;
+      --text-muted: #666666;
+      --accent: #ffffff;
+      --error: #ff4444;
+      --success: #44ff44;
+    }
+
+    * { box-sizing: border-box; }
+    
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background-color: var(--bg);
+      color: var(--text);
+      font-family: 'Inter', -apple-system, sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 10vh 20px;
+      line-height: 1.5;
+    }
+
+    /* Hidden elements required by JS */
+    #checkHypeBtn, #applyBtn, #notice, .notice-panel {
+      display: none !important;
+    }
+
+    .container {
+      width: 100%;
+      max-width: 800px;
+      display: flex;
+      flex-direction: column;
+      gap: 40px;
+    }
+
+    .input-zone {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 24px;
+    }
+
+    textarea {
+      width: 100%;
+      background: transparent;
+      border: none;
+      color: var(--text);
+      font-family: 'Inter', sans-serif;
+      font-size: clamp(2rem, 4vw, 3rem);
+      font-weight: 300;
+      line-height: 1.2;
+      text-align: center;
+      resize: none;
+      outline: none;
+      padding: 0;
+      height: 120px;
+    }
+
+    textarea::placeholder {
+      color: #333333;
+    }
+
+    .controls {
+      display: flex;
+      gap: 16px;
+      justify-content: center;
+    }
+
+    button {
+      background: transparent;
+      border: 1px solid #333;
+      color: var(--text-muted);
+      padding: 12px 32px;
+      border-radius: 100px;
+      font-family: 'Inter', sans-serif;
+      font-size: 0.9rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: all 0.3s ease;
+    }
+
+    button:hover:not(:disabled) {
+      border-color: var(--text);
+      color: var(--text);
+    }
+
+    button#recordBtn {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    button#recordBtn::before {
+      content: '';
+      display: block;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--error);
+      opacity: 0.8;
+    }
+
+    button:disabled {
+      opacity: 0.3;
+      cursor: not-allowed;
+    }
+
+    /* Results */
+    #output {
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      gap: 60px;
+      margin-top: 40px;
+      animation: fadeIn 0.8s ease forwards;
+    }
+
+    #output pre {
+      font-family: 'Inter', sans-serif;
+      font-size: 1rem;
+      color: var(--text-muted);
+      text-align: center;
+      white-space: pre-wrap;
+    }
+
+    .status-ok, .status-warn {
+      display: none; /* Hide generic status badges for minimal look */
+    }
+
+    .result-answer {
+      text-align: center;
+    }
+
+    .eyebrow {
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.2em;
+      color: var(--text-muted);
+      margin: 0 0 16px 0;
+      display: block;
+    }
+
+    .answer-text {
+      font-size: clamp(1.5rem, 3vw, 2.25rem);
+      font-weight: 300;
+      margin: 0;
+      color: var(--text);
+      line-height: 1.4;
+    }
+
+    /* Meta info minimalized */
+    .meta-grid {
+      display: flex;
+      justify-content: center;
+      gap: 40px;
+      flex-wrap: wrap;
+      border-top: 1px solid #111;
+      border-bottom: 1px solid #111;
+      padding: 24px 0;
+    }
+
+    .meta-card {
+      text-align: center;
+    }
+
+    .meta-label {
+      font-size: 0.65rem;
+      text-transform: uppercase;
+      letter-spacing: 0.15em;
+      color: #444;
+      margin-bottom: 8px;
+      display: block;
+    }
+
+    .meta-value {
+      font-size: 0.9rem;
+      color: var(--text-muted);
+    }
+
+    /* Sources list */
+    .source-list {
+      display: flex;
+      flex-direction: column;
+      gap: 32px;
+    }
+
+    .source-item {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .source-title {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      font-size: 0.85rem;
+      color: var(--text);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .source-score {
+      font-size: 0.7rem;
+      color: var(--text-muted);
+    }
+
+    .source-body {
+      margin: 0;
+      font-size: 1rem;
+      color: var(--text-muted);
+      line-height: 1.6;
+      font-weight: 300;
+    }
+
+    details {
+      margin-top: 40px;
+      border-top: 1px solid #111;
+      padding-top: 24px;
+    }
+
+    summary {
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: #333;
+      cursor: pointer;
+      text-align: center;
+    }
+
+    details pre {
+      margin-top: 24px;
+      text-align: left !important;
+      font-size: 0.75rem !important;
+      color: #444 !important;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+  </style>
+</head>
+<body>
+  <!-- Hidden elements to preserve JS bindings -->
+  <button id="checkHypeBtn"></button>
+  <button id="applyBtn"></button>
+  <div id="notice"></div>
+
+  <div class="container">
+    <div class="input-zone">
+      <textarea id="question" placeholder="Speak or type..."></textarea>
+      <div class="controls">
+        <button id="recordBtn">Record</button>
+        <button id="askBtn">Submit</button>
+      </div>
+    </div>
+
+    <div id="output"></div>
+  </div>
+
+  <script>
+    const output = document.getElementById("output");
+    const questionInput = document.getElementById("question");
+    const askBtn = document.getElementById("askBtn");
+    const recordBtn = document.getElementById("recordBtn");
+    const notice = document.getElementById("notice");
+    let recordedBase64 = null;
+    let browserTranscript = "";
+    const apiBase = window.location.protocol === "file:" ? "http://127.0.0.1:8000" : "";
+
+    // Auto-resize textarea
+    questionInput.addEventListener('input', function() {
+      this.style.height = 'auto';
+      this.style.height = (this.scrollHeight) + 'px';
+    });
+
+    if (window.location.protocol === "file:") {
+      fetch(`${apiBase}/health`)
+        .then((response) => {
+          if (response.ok) {
+            window.location.replace(`${apiBase}/`);
+          }
+        })
+        .catch(() => {});
+    }
+
+    function setBusy(state) {
+      askBtn.disabled = state;
+      recordBtn.disabled = state;
+      if (state) {
+        output.innerHTML = '';
+      }
+    }
+
+    function escapeHtml(value) {
+      return String(value)
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#39;");
+    }
+
+    function renderInitial(message) {
+      output.innerHTML = `<pre>${escapeHtml(message)}</pre>`;
+    }
+
+    function supportsRecording() {
+      return Boolean(navigator.mediaDevices?.getUserMedia && window.MediaRecorder);
+    }
+
+    function supportsSpeechRecognition() {
+      return Boolean(window.SpeechRecognition || window.webkitSpeechRecognition);
+    }
+
+    function buildSpeechRecognition() {
+      const SpeechRecognitionCtor = window.SpeechRecognition || window.webkitSpeechRecognition;
+      if (!SpeechRecognitionCtor) {
+        return null;
+      }
+      const recognition = new SpeechRecognitionCtor();
+      recognition.lang = "en-IN";
+      recognition.continuous = false;
+      recognition.interimResults = true;
+      return recognition;
+    }
+
+    function pickSupportedMimeType() {
+      const candidates = [
+        "audio/webm;codecs=opus",
+        "audio/webm",
+        "audio/mp4",
+        "audio/ogg;codecs=opus"
+      ];
+      if (!window.MediaRecorder?.isTypeSupported) {
+        return "";
+      }
+      return candidates.find((mimeType) => MediaRecorder.isTypeSupported(mimeType)) || "";
+    }
+
+    function renderResult(data) {
+      const sources = (data.retrievals || []).slice(0, 3);
+      const totalLatency = data.latency_ms?.total ?? "-";
+      const sttProvider = data.stt?.provider ?? "unknown";
+      
+      const sourceMarkup = sources.length
+        ? sources.map((source) => `
+            <div class="source-item">
+              <div class="source-title">
+                <span>${escapeHtml(source.metadata?.title || source.doc_id || "Source")}</span>
+                <span class="source-score">${escapeHtml(source.score)}</span>
+              </div>
+              <p class="source-body">${escapeHtml(source.text || "")}</p>
+            </div>
+          `).join("")
+        : `<p class="source-body" style="text-align:center">No retrieval evidence was returned.</p>`;
+
+      output.innerHTML = `
+        <div class="result-answer">
+          <span class="eyebrow">Response</span>
+          <p class="answer-text">${escapeHtml(data.answer || "No answer returned.")}</p>
+        </div>
+        
+        <div class="meta-grid">
+          <div class="meta-card">
+            <span class="meta-label">Latency</span>
+            <span class="meta-value">${escapeHtml(totalLatency)} ms</span>
+          </div>
+          <div class="meta-card">
+            <span class="meta-label">Guardrail</span>
+            <span class="meta-value">${escapeHtml(data.guardrail || "-")}</span>
+          </div>
+          <div class="meta-card">
+            <span class="meta-label">Provider</span>
+            <span class="meta-value">${escapeHtml(sttProvider)}</span>
+          </div>
+        </div>
+
+        <div class="source-list">
+          <span class="eyebrow" style="text-align:center">Evidence</span>
+          ${sourceMarkup}
+        </div>
+
+        <details>
+          <summary>Debug</summary>
+          <pre>${escapeHtml(JSON.stringify(data, null, 2))}</pre>
+        </details>
+      `;
+
+      if (data.transcript) {
+        questionInput.value = data.transcript;
+        questionInput.style.height = 'auto';
+        questionInput.style.height = (questionInput.scrollHeight) + 'px';
+      }
+    }
+
+    async function fileToBase64(blob) {
+      const buf = await blob.arrayBuffer();
+      let binary = "";
+      const bytes = new Uint8Array(buf);
+      bytes.forEach((b) => binary += String.fromCharCode(b));
+      return btoa(binary);
+    }
+
+    recordBtn.addEventListener("click", async () => {
+      if (!supportsRecording()) {
+        renderInitial("Recording not supported.");
+        return;
+      }
+      setBusy(true);
+      renderInitial("Listening...");
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        const mimeType = pickSupportedMimeType();
+        const recorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
+        const chunks = [];
+        const recognition = buildSpeechRecognition();
+        let recognitionEnded = !recognition;
+        let recorderEnded = false;
+        let recognitionFailed = false;
+        browserTranscript = "";
+
+        function finalizeCapture() {
+          if (!recorderEnded || !recognitionEnded) return;
+          
+          if (browserTranscript.trim()) {
+            questionInput.value = browserTranscript.trim();
+            renderInitial("Audio transcribed. Click Submit.");
+            return;
+          }
+          if (recordedBase64) {
+            renderInitial("Audio captured. Click Submit.");
+            return;
+          }
+          if (recognitionFailed) {
+            renderInitial("Recognition failed. Configure backend STT.");
+            return;
+          }
+          renderInitial("No transcript detected.");
+        }
+
+        recorder.ondataavailable = (event) => {
+          if (event.data?.size) chunks.push(event.data);
+        };
+        
+        recorder.onerror = () => {
+          renderInitial("Recording failed.");
+          stream.getTracks().forEach((track) => track.stop());
+          setBusy(false);
+        };
+        
+        recorder.onstop = async () => {
+          try {
+            if (!chunks.length) throw new Error("No audio captured");
+            const blob = new Blob(chunks, { type: mimeType || "audio/webm" });
+            recordedBase64 = await fileToBase64(blob);
+          } catch (error) {
+            recordedBase64 = null;
+            renderInitial(`Capture failed: ${error}`);
+          } finally {
+            recorderEnded = true;
+            stream.getTracks().forEach((track) => track.stop());
+            if (!recognition) setBusy(false);
+            finalizeCapture();
+          }
+        };
+
+        if (recognition) {
+          recognition.onresult = (event) => {
+            const transcript = Array.from(event.results)
+              .map((result) => result[0]?.transcript || "")
+              .join(" ")
+              .trim();
+            if (transcript) browserTranscript = transcript;
+          };
+          recognition.onerror = () => { recognitionFailed = true; };
+          recognition.onend = () => {
+            recognitionEnded = true;
+            setBusy(false);
+            finalizeCapture();
+          };
+          recognition.start();
+        } else {
+          recognitionEnded = true;
+        }
+
+        recorder.start();
+        setTimeout(() => {
+          if (recorder.state !== "inactive") recorder.stop();
+          if (recognition && !recognitionEnded) recognition.stop();
+        }, 5000);
+      } catch (error) {
+        recordedBase64 = null;
+        browserTranscript = "";
+        setBusy(false);
+        renderInitial(`Microphone failed: ${error}`);
+      }
+    });
+
+    askBtn.addEventListener("click", async () => {
+      setBusy(true);
+      renderInitial("Processing...");
+      try {
+        const payload = {
+          question: questionInput.value || browserTranscript,
+          audio_base64: recordedBase64,
+          audio_filename: "query.webm"
+        };
+        const response = await fetch(`${apiBase}/api/query`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+        if (!response.ok) {
+          throw new Error(`Failed: ${response.status}`);
+        }
+        const data = await response.json();
+        renderResult(data);
+      } catch (error) {
+        renderInitial(`Error: ${error}`);
+      } finally {
+        setBusy(false);
+      }
+    });
+  </script>
+</body>
+</html>

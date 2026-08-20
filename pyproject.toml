@@ -1,0 +1,8 @@
+[project]
+name = "ragvoice-demo"
+version = "0.1.0"
+description = "Local voice-enabled RAG demo for the HH Goa task brief"
+requires-python = ">=3.10"
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
