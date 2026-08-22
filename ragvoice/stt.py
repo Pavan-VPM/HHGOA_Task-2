@@ -155,6 +155,36 @@ class MacOSSpeechToText(BaseSpeechToText):
         return state["status"]
 
 
+def _encode_multipart(fields: dict[str, str], files: dict[str, tuple[str, bytes, str]]) -> tuple[bytes, str]:
+    boundary = "----WebKitFormBoundaryRAGVoiceSTT"
+    body = []
+    for key, val in fields.items():
+        body.append(f"--{boundary}\r\n".encode("utf-8"))
+        body.append(f'Content-Disposition: form-data; name="{key}"\r\n\r\n'.encode("utf-8"))
+        body.append(f"{val}\r\n".encode("utf-8"))
+    for key, (filename, content, mime_type) in files.items():
+        body.append(f"--{boundary}\r\n".encode("utf-8"))
+        body.append(f'Content-Disposition: form-data; name="{key}"; filename="{filename}"\r\n'.encode("utf-8"))
+        body.append(f"Content-Type: {mime_type}\r\n\r\n".encode("utf-8"))
+        body.append(content)
+        body.append(b"\r\n")
+    body.append(f"--{boundary}--\r\n".encode("utf-8"))
+    return b"".join(body), f"multipart/form-data; boundary={boundary}"
+
+
+def _request_with_retry(request: urllib.request.Request, retries: int = 3, delay: float = 1.0) -> dict:
+    import time
+    for attempt in range(retries):
+        try:
+            with urllib.request.urlopen(request, timeout=20) as response:
+                return json.loads(response.read().decode("utf-8"))
+        except (urllib.error.URLError, TimeoutError) as exc:
+            if attempt == retries - 1:
+                raise exc
+            time.sleep(delay * (2 ** attempt))
+    return {}
+
+
 class ElevenLabsSpeechToText(BaseSpeechToText):
     provider_name = "elevenlabs"
 
@@ -164,19 +194,23 @@ class ElevenLabsSpeechToText(BaseSpeechToText):
             raise RuntimeError("Missing RAGVOICE_ELEVENLABS_API_KEY")
         if not audio_bytes:
             raise RuntimeError("No audio bytes provided for ElevenLabs transcription")
+
+        fields = {"model_id": "scribe_v2"}
+        files = {"file": (filename, audio_bytes, "audio/webm")}
+        body, content_type = _encode_multipart(fields, files)
+
         request = urllib.request.Request(
             url="https://api.elevenlabs.io/v1/speech-to-text",
-            data=audio_bytes,
+            data=body,
             method="POST",
             headers={
                 "xi-api-key": api_key,
-                "Content-Type": "audio/webm",
+                "Content-Type": content_type,
             },
         )
         try:
-            with urllib.request.urlopen(request, timeout=20) as response:
-                payload = json.loads(response.read().decode("utf-8"))
-        except urllib.error.URLError as exc:
+            payload = _request_with_retry(request)
+        except Exception as exc:
             raise RuntimeError(f"ElevenLabs transcription failed: {exc}") from exc
         return TranscriptResult(text=payload.get("text", "").strip(), provider=self.provider_name)
 
@@ -190,19 +224,23 @@ class SarvamSpeechToText(BaseSpeechToText):
             raise RuntimeError("Missing RAGVOICE_SARVAM_API_KEY")
         if not audio_bytes:
             raise RuntimeError("No audio bytes provided for Sarvam transcription")
+
+        fields = {"model": "saaras:v1"}
+        files = {"file": (filename, audio_bytes, "audio/webm")}
+        body, content_type = _encode_multipart(fields, files)
+
         request = urllib.request.Request(
             url="https://api.sarvam.ai/speech-to-text",
-            data=audio_bytes,
+            data=body,
             method="POST",
             headers={
                 "api-subscription-key": api_key,
-                "Content-Type": "audio/webm",
+                "Content-Type": content_type,
             },
         )
         try:
-            with urllib.request.urlopen(request, timeout=20) as response:
-                payload = json.loads(response.read().decode("utf-8"))
-        except urllib.error.URLError as exc:
+            payload = _request_with_retry(request)
+        except Exception as exc:
             raise RuntimeError(f"Sarvam transcription failed: {exc}") from exc
         text = payload.get("transcript") or payload.get("text") or ""
         return TranscriptResult(text=text.strip(), provider=self.provider_name)
