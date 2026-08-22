@@ -1,1 +1,1 @@
-# No dependencies needed since the project uses standard Python library modules only.
+# ragvoice is a local package bundled with the project (no external PyPI deps needed)
